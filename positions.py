@@ -5,6 +5,7 @@ import astropy.units as u
 from astropy.coordinates import solar_system_ephemeris, get_body
 from astropy.coordinates import ICRS, FK5, Galactic, GeocentricTrueEcliptic
 from astropy.coordinates import Angle
+import sys
 
 # Function to determine which zodiac constellation a given position is in, based on ICRS coordinates
 def get_zodiac_sign_icrs(ecliptic_longitude):
@@ -86,7 +87,7 @@ def track_planets():
             ecliptic_longitude = ecliptic.lon.deg
             zodiac_sign = get_zodiac_sign_icrs(ecliptic_longitude)
 
-            print(f"{planet.capitalize()} is {body_altaz.alt:.2f} degrees above the horizon, located in the zodiac constellation: {zodiac_sign}")
+            print(f"{planet.capitalize()} is {body_altaz.alt:.2f} degrees above the horizon, located in the zodiac constellation: {zodiac_sign}.")
 
         for body_name in additional_bodies:
             if body_name == 'sun':
@@ -99,7 +100,51 @@ def track_planets():
             ecliptic_longitude = ecliptic.lon.deg
             zodiac_sign = get_zodiac_sign_icrs(ecliptic_longitude)
 
-            print(f"{body_name.capitalize()} is {body_altaz.alt:.2f} degrees above the horizon, located in the zodiac constellation: {zodiac_sign}")
+            print(f"{body_name.capitalize()} is {body_altaz.alt:.2f} degrees above the horizon, located in the zodiac constellation: {zodiac_sign}.")
+
+# Function to get celestial information for a specific date and time
+def track_planets_at(year, month, day, hour, minute):
+    location = EarthLocation(lat=51.5074*u.deg, lon=-0.1278*u.deg, height=0*u.m)  # Change lat/lon for your location
+    specific_time = Time(datetime.datetime(year, month, day, hour, minute, tzinfo=datetime.UTC))
+    frame = AltAz(obstime=specific_time, location=location)
+    planets = ['mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus']  # 'pluto' is commented out
+    additional_bodies = ['sun', 'moon']
+
+    current_season, next_event, time_until_next = get_season_info(specific_time)
+    print(f"Current season: {current_season} on {year}-{month:02d}-{day:02d} at {hour:02d}:{minute:02d}")
+    print(f"Next event: {next_event} in {time_until_next}")
+
+    with solar_system_ephemeris.set('builtin'):
+        for planet in planets:
+            try:
+                body = get_body(planet, specific_time, location)
+            except KeyError as e:
+                if 'pluto' in str(e):
+                    print("Pluto's position cannot be calculated with the 'builtin' ephemeris.")
+                    continue
+            body_altaz = body.transform_to(frame)
+            ecliptic = body.transform_to(GeocentricTrueEcliptic())
+            ecliptic_longitude = ecliptic.lon.deg
+            zodiac_sign = get_zodiac_sign_icrs(ecliptic_longitude)
+
+            print(f"{planet.capitalize()} is {body_altaz.alt:.2f} degrees above the horizon, located in the zodiac constellation: {zodiac_sign}.")
+
+        for body_name in additional_bodies:
+            if body_name == 'sun':
+                body = get_sun(specific_time)
+            elif body_name == 'moon':
+                body = get_body('moon', specific_time, location)
+            
+            body_altaz = body.transform_to(frame)
+            ecliptic = body.transform_to(GeocentricTrueEcliptic())
+            ecliptic_longitude = ecliptic.lon.deg
+            zodiac_sign = get_zodiac_sign_icrs(ecliptic_longitude)
+
+            print(f"{body_name.capitalize()} is {body_altaz.alt:.2f} degrees above the horizon, located in the zodiac constellation: {zodiac_sign}.")
 
 if __name__ == "__main__":
-    track_planets()
+    if len(sys.argv) == 6:
+        year, month, day, hour, minute = map(int, sys.argv[1:])
+        track_planets_at(year, month, day, hour, minute)
+    else:
+        track_planets()
